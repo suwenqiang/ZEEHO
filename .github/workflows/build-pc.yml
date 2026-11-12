@@ -44,23 +44,17 @@ jobs:
         shell: pwsh
         run: Get-ChildItem dist | Format-Table Name,Length
 
-      - name: Compute build time (Beijing)
-        id: bt
-        run: echo "BJ=$((Get-Date).ToUniversalTime().AddHours(8).ToString('yyyy-MM-dd HH:mm'))" >> $env:GITHUB_OUTPUT
-
       - name: Publish to release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
           tag_name: pc-latest
-          name: 极核签到面板 Windows 桌面版
+          name: 极核签到面板桌面版
           body: |
-            Windows 桌面版安装包。
-            - Setup 安装版（NSIS，x64）
-            - Portable 便携版（x64）
+            Windows 与 Ubuntu Linux 桌面版安装包。
+            - Windows：Setup 安装版（NSIS，x64）和 Portable 便携版（x64）
+            - Linux：AppImage 与 deb 安装包（x64）
             - 内核：构建时打包 repo/zeeho_box_enhanced.js
-            - 更新时间：${{ steps.bt.outputs.BJ }}（北京时间）
-            - 构建提交：${{ github.sha }}
           files: |
             desktop/dist/*Setup*.exe
             desktop/dist/*Portable*.exe
@@ -72,7 +66,7 @@ jobs:
       - name: Prune old assets (keep only current version)
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
           VER=$(node -p "require('./desktop/package.json').version")
           echo "keep version: $VER"
@@ -84,9 +78,12 @@ jobs:
             const h = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
             const rel = await (await fetch(`https://api.github.com/repos/${repo}/releases/tags/pc-latest`, { headers: h })).json();
             const assets = rel.assets || [];
-            const keep = new Set([`ZeehoPanel-Setup-${ver}.exe`, `ZeehoPanel-Portable-${ver}.exe`]);
+            const keep = new Set([
+              `ZeehoPanel-Setup-${ver}.exe`,
+              `ZeehoPanel-Portable-${ver}.exe`
+            ]);
             for (const a of assets) {
-              if (keep.has(String(a.name))) continue;
+              if (keep.has(String(a.name)) || String(a.name).startsWith("ZeehoPanel-Linux-")) continue;
               const r = await fetch(`https://api.github.com/repos/${repo}/releases/assets/${a.id}`, { method: "DELETE", headers: h });
               console.log(`pruned ${a.name} -> ${r.status}`);
             }

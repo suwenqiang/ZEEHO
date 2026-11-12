@@ -23,6 +23,7 @@ function resolveCoreScript() {
 }
 function iconPath() {
   const candidates = [
+    ...(app.isPackaged ? [path.join(process.resourcesPath, "tray.png")] : []),
     path.join(__dirname, "build", "icon.png"),
     path.join(__dirname, "..", "ZEEHO.png"),
     path.join(__dirname, "..", "..", "ZEEHO.png")
@@ -33,6 +34,7 @@ function iconPath() {
 
 // ---------- 桌面端设置（与脚本的 $persistentStore 分离） ----------
 const settingsFile = () => path.join(app.getPath("userData"), "desktop-settings.json");
+const linuxAutostartFile = () => path.join(app.getPath("appData"), "autostart", "zeeho-panel.desktop");
 const PANEL_HTML_PATH = path.join(__dirname, "panel.html");
 const DEFAULT_SETTINGS = {
   autoSignin: true, signinTime: "08:30", launchAtStartup: false, lastSigninDate: "",
@@ -52,6 +54,36 @@ function saveSettings(s) {
 }
 let settings = {}; // app ready 后初始化
 
+function setLaunchAtStartup(enabled) {
+  if (process.platform === "linux") {
+    const file = linuxAutostartFile();
+    if (!enabled) {
+      fs.rmSync(file, { force: true });
+      return;
+    }
+
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const executable = process.env.APPIMAGE || process.execPath;
+    const quoteArg = (value) => `"${String(value).replace(/([\\`"$])/g, "\\$1").replace(/%/g, "%%")}"`;
+    const appArg = !app.isPackaged && !process.env.APPIMAGE ? ` ${quoteArg(__dirname)}` : "";
+    fs.writeFileSync(file, [
+      "[Desktop Entry]",
+      "Type=Application",
+      "Name=极核签到面板",
+      `Exec=${quoteArg(executable)}${appArg}`,
+      "Terminal=false",
+      "X-GNOME-Autostart-enabled=true",
+      ""
+    ].join("\n"), "utf8");
+    return;
+  }
+  app.setLoginItemSettings({ openAtLogin: !!enabled, path: process.execPath, args: [] });
+}
+function isLaunchAtStartupEnabled() {
+  if (process.platform === "linux") return fs.existsSync(linuxAutostartFile());
+  return !!app.getLoginItemSettings().openAtLogin;
+}
+
 // 统一应用桌面设置变更（托盘菜单与 /desktop-settings HTTP 路由共用）
 function applyDesktopSettings(patch) {
   if (patch.ui) patch = Object.assign({}, patch, { ui: Object.assign({}, settings.ui || {}, patch.ui) });
@@ -59,7 +91,7 @@ function applyDesktopSettings(patch) {
   saveSettings(settings);
   if ("autoSignin" in patch || "signinTime" in patch) scheduleNext();
   if ("launchAtStartup" in patch) {
-    try { app.setLoginItemSettings({ openAtLogin: !!settings.launchAtStartup, path: process.execPath, args: [] }); }
+    try { setLaunchAtStartup(settings.launchAtStartup); }
     catch (e) { logLine("设置开机自启失败: " + e.message); }
   }
   refreshTrayMenu();
@@ -276,19 +308,34 @@ ipcMain.on("win:close", () => { if (win) win.close(); });
 
   // ---------- 托盘 ----------
 function buildTrayMenu() {
+  const labels = process.platform === "linux" ? {
+    show: "Open panel",
+    signin: "Sign in now",
+    autoSignin: "Automatic sign-in",
+    signinTime: "Sign-in time",
+    startup: "Launch at startup",
+    quit: "Quit"
+  } : {
+    show: "显示面板",
+    signin: "立即签到",
+    autoSignin: "定时自动签到",
+    signinTime: "签到时间",
+    startup: "开机自启动",
+    quit: "退出"
+  };
   const timeOptions = ["07:00", "08:30", "09:00", "12:00", "18:00", "21:00"];
   return Menu.buildFromTemplate([
-    { label: "显示面板", click: () => showWindow() },
-    { label: "立即签到", click: () => runSignin("手动") },
+    { label: labels.show, click: () => showWindow() },
+    { label: labels.signin, click: () => runSignin("手动") },
     { type: "separator" },
     {
-      label: "定时自动签到",
+      label: labels.autoSignin,
       type: "checkbox",
       checked: !!settings.autoSignin,
       click: (item) => { applyDesktopSettings({ autoSignin: item.checked }); }
     },
     {
-      label: "签到时间",
+      label: labels.signinTime,
       submenu: timeOptions.map((t) => ({
         label: t,
         type: "radio",
@@ -297,14 +344,14 @@ function buildTrayMenu() {
       }))
     },
     {
-      label: "开机自启动",
+      label: labels.startup,
       type: "checkbox",
       checked: !!settings.launchAtStartup,
       click: (item) => { applyDesktopSettings({ launchAtStartup: item.checked }); }
     },
     { type: "separator" },
     {
-      label: "退出",
+      label: labels.quit,
       click: () => {
         isQuitting = true;
         app.quit();
@@ -315,9 +362,12 @@ function buildTrayMenu() {
 function createTray() {
   const ip = iconPath();
   let img = ip ? nativeImage.createFromPath(ip) : nativeImage.createEmpty();
-  if (!img.isEmpty()) img = img.resize({ width: 16, height: 16 });
+  if (!img.isEmpty()) {
+    const size = process.platform === "linux" ? 22 : 16;
+    img = img.resize({ width: size, height: size });
+  }
   tray = new Tray(img);
-  tray.setToolTip("极核签到面板");
+  tray.setToolTip(process.platform === "linux" ? "ZEEHO Sign-in Panel" : "极核签到面板");
   tray.setContextMenu(buildTrayMenu());
   tray.on("double-click", () => showWindow());
   tray.on("click", () => { if (tray) tray.popUpContextMenu(); });
@@ -337,7 +387,7 @@ app.whenReady().then(async () => {
     settings.launchAtStartup = on;
     saveSettings(settings);
     try {
-      app.setLoginItemSettings({ openAtLogin: on, path: process.execPath, args: [] });
+      setLaunchAtStartup(on);
       logLine("开机自启已" + (on ? "开启" : "关闭") + "（CLI 配置）");
     } catch (e) {
       logLine("CLI 配置开机自启失败: " + e.message);
@@ -363,9 +413,9 @@ app.whenReady().then(async () => {
 
   // 开机自启状态同步（以系统实际设置为准）
   try {
-    const cur = app.getLoginItemSettings();
-    if (!!cur.openAtLogin !== !!settings.launchAtStartup) {
-      settings.launchAtStartup = !!cur.openAtLogin;
+    const launchAtStartup = isLaunchAtStartupEnabled();
+    if (launchAtStartup !== !!settings.launchAtStartup) {
+      settings.launchAtStartup = launchAtStartup;
       saveSettings(settings);
     }
   } catch (e) {}

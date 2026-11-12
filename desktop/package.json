@@ -10,6 +10,7 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win",
+    "dist:linux": "electron-builder --linux AppImage deb",
     "dist:portable": "electron-builder --win portable"
   },
   "devDependencies": {
@@ -34,6 +35,10 @@
       {
         "from": "../repo/zeeho_box_enhanced.js",
         "to": "zeeho_box_enhanced.js"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "tray.png"
       }
     ],
     "win": {
@@ -41,6 +46,15 @@
         { "target": "nsis", "arch": ["x64"] },
         { "target": "portable", "arch": ["x64"] }
       ]
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "Utility",
+      "maintainer": "lucky",
+      "artifactName": "ZeehoPanel-Linux-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -52,5 +66,8 @@
     "portable": {
       "artifactName": "ZeehoPanel-Portable-${version}.exe"
     }
+  },
+  "allowScripts": {
+    "electron": true
   }
 }

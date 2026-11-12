@@ -79,6 +79,12 @@
 - 托盘常驻、定时自动签到、开机自启
 - 下载：[Releases](https://github.com/cluck798/ZEEHO/releases)（Setup 安装版 / Portable 便携版）
 
+### 🖥️ 桌面版（Ubuntu Linux）
+- Ubuntu x64 支持 AppImage 和 deb 安装包；托盘常驻、定时自动签到、开机自启
+- 下载：[Releases](https://github.com/cluck798/ZEEHO/releases) 中的 `ZeehoPanel-Linux-*.AppImage` 或 `ZeehoPanel-Linux-*.deb`
+- AppImage：运行 `chmod +x ZeehoPanel-Linux-*.AppImage && ./ZeehoPanel-Linux-*.AppImage`；deb：使用 `sudo apt install ./ZeehoPanel-Linux-*.deb` 安装
+- 从源码运行：安装 Node.js 20+，在仓库根目录执行 `cd desktop && npm install && npm start`
+
 ### 📱 iOS 版（TrollStore / 巨魔）
 - WKWebView 面板 + 本地通知（签到结果、充电充满、车辆离线、充电完成、震动等车辆提醒）
 - 后台常驻充电监控（静音保活 + 每 3 分钟轮询车辆提醒/充满/离线）
@@ -113,7 +119,7 @@
 | <img src="screenshots/demo_ride.png" width="240" alt="骑行" /> | <img src="screenshots/demo_ride_detail.png" width="240" alt="骑行明细" /> |
 
 ## ⚠️ 注意事项
-- 当前版本：脚本 `2.16.46` / Android `1.2.49` / iOS `1.2.50` / Windows `1.3.27`
+- 当前版本：脚本 `2.16.46` / Android `1.2.49` / iOS `1.2.50` / 桌面版 `1.3.27`
 - `boxjs_store.json` 含 Token，已被 `.gitignore` 忽略，禁止提交
 - App 更新导致接口加密变化时脚本可能失效，等待适配
 - 使用第三方脚本存在账号风控风险，请自行评估
